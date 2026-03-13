@@ -50,7 +50,7 @@ function RoomCard({ room, index, onClick }){
 }
 
 // ── CreateRoomModal ────────────────────────────────────────────────
-function CreateRoomModal({ open, onClose, onCreated }){
+function CreateRoomModal({ open, onClose, onCreated, hasExistingRoom }){
   const [name,          setName]          = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('🌙');
   const [tag,           setTag]           = useState('Chatting');
@@ -77,6 +77,11 @@ function CreateRoomModal({ open, onClose, onCreated }){
       <div className="hp-modal-sheet">
         <div className="hp-modal-handle"></div>
         <div className="hp-modal-title">Create a Room</div>
+        {hasExistingRoom && (
+          <div style={{margin:'0 16px 8px',padding:'10px 12px',background:'rgba(249,115,22,0.15)',borderRadius:'10px',fontSize:'12px',color:'#f97316',lineHeight:'1.5'}}>
+            ⚠️ You already have an active room. Creating a new one will <strong>replace</strong> your existing room.
+          </div>
+        )}
         <div className="hp-modal-body">
           <div>
             <div className="hp-form-label">ROOM NAME</div>
@@ -131,9 +136,24 @@ export default function HomePage(){
   const [followStatus,setFollowStatus]= useState('idle');
   const [recentRooms, setRecentRooms] = useState([]);
   const [showCreate,  setShowCreate]  = useState(false);
+  const [myRoom,      setMyRoom]      = useState(null);
+  const [myRoomLoading, setMyRoomLoading] = useState(false);
 
   const pollTimer    = useRef(null);
   const fetchPending = useRef(false);
+
+  // ── Load my room ─────────────────────────────────────────────
+  const loadMyRoom = useCallback(async () => {
+    setMyRoomLoading(true);
+    try {
+      const { data } = await api.get('/rooms/mine');
+      setMyRoom(data);
+    } catch (e) {
+      setMyRoom(null);
+    } finally {
+      setMyRoomLoading(false);
+    }
+  }, []);
 
   // ── Load live rooms ──────────────────────────────────────────
   const loadRooms = useCallback(async (initial=false)=>{
@@ -165,6 +185,7 @@ export default function HomePage(){
   // ── Polling ──────────────────────────────────────────────────
   useEffect(()=>{
     loadRooms(true);
+    loadMyRoom(); // load on mount so Me tab is ready instantly
     pollTimer.current = setInterval(()=>{
       if(document.visibilityState==='visible') loadRooms(false);
     }, 5000);
@@ -176,6 +197,7 @@ export default function HomePage(){
   // ── Me tab effects ───────────────────────────────────────────
   useEffect(()=>{
     if(mainTab==='me'){
+      loadMyRoom();
       if(subTab==='following' && followStatus==='idle') loadFollowing();
       if(subTab==='recent') setRecentRooms(getRecentRooms());
     }
@@ -194,6 +216,7 @@ export default function HomePage(){
 
   const handleRoomCreated = (roomId)=>{
     setShowCreate(false);
+    loadMyRoom();
     navigate(`/room/${roomId}`);
   };
 
@@ -277,11 +300,45 @@ export default function HomePage(){
         {/* My room */}
         <div className="hp-my-room-section">
           <div className="hp-my-room-label">My Room</div>
-          <div className="hp-my-room-empty" onClick={()=>setShowCreate(true)}>
-            <div className="hp-my-room-empty-icon">🎙️</div>
-            <div className="hp-my-room-empty-text">Create your room</div>
-            <div className="hp-my-room-empty-sub">Tap to get started</div>
-          </div>
+          {myRoomLoading ? (
+            <div style={{textAlign:'center',padding:'24px',color:'var(--lv-muted)',fontSize:'13px'}}>Loading...</div>
+          ) : myRoom ? (
+            <div className="hp-my-room-card" onClick={()=>navigate(`/room/${myRoom.id}`)}>
+              <div className="hp-my-room-cover">{myRoom.emoji || myRoom.name?.[0] || '🎙'}</div>
+              <div className="hp-my-room-info">
+                <div className="hp-my-room-name">{myRoom.name}</div>
+                <div className="hp-my-room-meta">
+                  <span style={{fontSize:'11px',color:'var(--lv-muted)'}}>👥 {myRoom.listener_count||0} listeners</span>
+                </div>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:'6px',alignItems:'flex-end'}}>
+                <button className="hp-my-room-enter" onClick={e=>{ e.stopPropagation(); navigate(`/room/${myRoom.id}`); }}>Enter</button>
+                <button
+                  style={{fontSize:'11px',color:'var(--lv-muted)',background:'none',border:'none',cursor:'pointer',padding:'2px 8px'}}
+                  onClick={e=>{ e.stopPropagation(); setShowCreate(true); }}
+                >Replace</button>
+                <button
+                  style={{fontSize:'11px',color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'2px 8px'}}
+                  onClick={async e=>{
+                    e.stopPropagation();
+                    if(!window.confirm('Delete your room? This cannot be undone.')) return;
+                    try{
+                      await api.delete(`/rooms/${myRoom.id}`);
+                      setMyRoom(null);
+                    }catch(err){
+                      alert(err.response?.data?.error||'Failed to delete room');
+                    }
+                  }}
+                >Delete</button>
+              </div>
+            </div>
+          ) : (
+            <div className="hp-my-room-empty" onClick={()=>setShowCreate(true)}>
+              <div className="hp-my-room-empty-icon">🎙️</div>
+              <div className="hp-my-room-empty-text">Create your room</div>
+              <div className="hp-my-room-empty-sub">Tap to get started</div>
+            </div>
+          )}
         </div>
 
         {/* Sub-tabs */}
@@ -369,7 +426,7 @@ export default function HomePage(){
         </div>
       </div>
 
-      <CreateRoomModal open={showCreate} onClose={()=>setShowCreate(false)} onCreated={handleRoomCreated}/>
+      <CreateRoomModal open={showCreate} onClose={()=>setShowCreate(false)} onCreated={handleRoomCreated} hasExistingRoom={!!myRoom}/>
     </div>
   );
 }
