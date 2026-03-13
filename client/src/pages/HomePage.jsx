@@ -196,18 +196,8 @@ export default function HomePage(){
 
   // ── Me tab effects ───────────────────────────────────────────
   useEffect(()=>{
-    if(mainTab==='me'){
-      loadMyRoom();
-      if(subTab==='following' && followStatus==='idle') loadFollowing();
-      if(subTab==='recent') setRecentRooms(getRecentRooms());
-    }
-  },[mainTab, subTab]);
-
-  const handleSubTab = (tab)=>{
-    setSubTab(tab);
-    if(tab==='following') loadFollowing();
-    if(tab==='recent') setRecentRooms(getRecentRooms());
-  };
+    if(mainTab==='me') loadMyRoom();
+  },[mainTab]);
 
   const goToRoom = (room)=>{
     saveRecentRoom({ id:room.id, name:room.name, emoji:room.emoji||room.name?.[0], owner:room.host_username||'?' });
@@ -218,6 +208,12 @@ export default function HomePage(){
     setShowCreate(false);
     loadMyRoom();
     navigate(`/room/${roomId}`);
+  };
+
+  // ── + button handler ─────────────────────────────────────────
+  const handlePlusBtn = ()=>{
+    if(myRoom) navigate(`/room/${myRoom.id}`); // already has room → go there
+    else setShowCreate(true);                   // no room yet → create
   };
 
   return (
@@ -231,7 +227,7 @@ export default function HomePage(){
         </div>
         <div className="hp-nav-right">
           <div className="hp-icon-btn">🔍</div>
-          <div className="hp-create-btn" onClick={()=>setShowCreate(true)}>＋</div>
+          <div className="hp-create-btn" onClick={handlePlusBtn}>＋</div>
         </div>
       </div>
 
@@ -279,58 +275,21 @@ export default function HomePage(){
       {/* ══════════════ ME ══════════════ */}
       <div className={`hp-page${mainTab==='me'?' active':''}`}>
 
-        {/* User card */}
-        <div className="hp-user-card">
-          <div className="hp-user-avatar">
-            {user?.avatar_url
-              ? <img src={user.avatar_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'14px'}}/>
-              : (user?.username?.[0]?.toUpperCase()||'?')}
-          </div>
-          <div style={{flex:1,minWidth:0}}>
-            <div className="hp-user-name">{user?.username||'...'}</div>
-            <div className="hp-user-meta">
-              <div className="hp-user-level">Lv.{user?.level||1}</div>
-              <div className="hp-user-id">ID: {user?.id||'-'}</div>
-              <div className="hp-user-coins">🪙 {(user?.coins||0).toLocaleString()}</div>
-            </div>
-          </div>
-          <div className="hp-arrow-btn">›</div>
-        </div>
-
-        {/* My room */}
+        {/* My Room */}
         <div className="hp-my-room-section">
           <div className="hp-my-room-label">My Room</div>
           {myRoomLoading ? (
-            <div style={{textAlign:'center',padding:'24px',color:'var(--lv-muted)',fontSize:'13px'}}>Loading...</div>
+            <div style={{textAlign:'center',padding:'32px',color:'var(--lv-muted)',fontSize:'13px'}}>Loading...</div>
           ) : myRoom ? (
             <div className="hp-my-room-card" onClick={()=>navigate(`/room/${myRoom.id}`)}>
               <div className="hp-my-room-cover">{myRoom.emoji || myRoom.name?.[0] || '🎙'}</div>
               <div className="hp-my-room-info">
                 <div className="hp-my-room-name">{myRoom.name}</div>
                 <div className="hp-my-room-meta">
-                  <span style={{fontSize:'11px',color:'var(--lv-muted)'}}>👥 {myRoom.listener_count||0} listeners</span>
+                  <span style={{fontSize:'11px',color:'var(--lv-muted)'}}>👥 {myRoom.listener_count||0} listeners • {myRoom.tag||'Chatting'}</span>
                 </div>
               </div>
-              <div style={{display:'flex',flexDirection:'column',gap:'6px',alignItems:'flex-end'}}>
-                <button className="hp-my-room-enter" onClick={e=>{ e.stopPropagation(); navigate(`/room/${myRoom.id}`); }}>Enter</button>
-                <button
-                  style={{fontSize:'11px',color:'var(--lv-muted)',background:'none',border:'none',cursor:'pointer',padding:'2px 8px'}}
-                  onClick={e=>{ e.stopPropagation(); setShowCreate(true); }}
-                >Replace</button>
-                <button
-                  style={{fontSize:'11px',color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'2px 8px'}}
-                  onClick={async e=>{
-                    e.stopPropagation();
-                    if(!window.confirm('Delete your room? This cannot be undone.')) return;
-                    try{
-                      await api.delete(`/rooms/${myRoom.id}`);
-                      setMyRoom(null);
-                    }catch(err){
-                      alert(err.response?.data?.error||'Failed to delete room');
-                    }
-                  }}
-                >Delete</button>
-              </div>
+              <button className="hp-my-room-enter" onClick={e=>{ e.stopPropagation(); navigate(`/room/${myRoom.id}`); }}>Enter</button>
             </div>
           ) : (
             <div className="hp-my-room-empty" onClick={()=>setShowCreate(true)}>
@@ -341,71 +300,7 @@ export default function HomePage(){
           )}
         </div>
 
-        {/* Sub-tabs */}
-        <div className="hp-sub-tabs">
-          <div className={`hp-sub-tab${subTab==='following'?' active':''}`} onClick={()=>handleSubTab('following')}>Following</div>
-          <div className={`hp-sub-tab${subTab==='recent'?' active':''}`}    onClick={()=>handleSubTab('recent')}>Recent Rooms</div>
-        </div>
-
-        {/* Following */}
-        {subTab==='following' && (
-          <div>
-            {followStatus==='loading' && <div style={{textAlign:'center',padding:'32px',color:'var(--lv-muted)',fontSize:'13px'}}>Loading...</div>}
-            {followStatus==='empty' && (
-              <div className="hp-empty-state">
-                <div className="hp-empty-icon">👥</div>
-                <div className="hp-empty-text">No rooms followed yet</div>
-                <div className="hp-empty-sub">Follow a host inside their room to see them here</div>
-              </div>
-            )}
-            {followStatus==='error' && <div style={{textAlign:'center',padding:'32px',color:'var(--lv-muted)',fontSize:'13px'}}>Failed to load.</div>}
-            {followStatus==='ok' && following.map(room=>(
-              <div key={room.id} className="hp-following-card hp-flw-live" onClick={()=>goToRoom(room)}>
-                <div className="hp-flw-cover" style={{background:'linear-gradient(135deg,#a78bfa,#f472b6)'}}>
-                  {room.emoji||room.name?.[0]||'🎙'}
-                  <div className="hp-flw-live-badge"><div className="hp-live-dot"></div> LIVE</div>
-                </div>
-                <div className="hp-flw-info">
-                  <div className="hp-flw-room-name">{room.name}</div>
-                  <div className="hp-flw-meta">
-                    <span className="hp-flw-owner">{room.host_username||'?'}</span>
-                    <span className="hp-flw-viewers">👥 {room.listener_count||0}</span>
-                  </div>
-                </div>
-                <button className="hp-flw-enter-btn" onClick={e=>{ e.stopPropagation(); goToRoom(room); }}>Enter</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Recent Rooms */}
-        {subTab==='recent' && (
-          <div>
-            {recentRooms.length===0 ? (
-              <div className="hp-empty-state">
-                <div className="hp-empty-icon">🕐</div>
-                <div className="hp-empty-text">No recently visited rooms</div>
-              </div>
-            ) : (
-              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-                {recentRooms.map(r=>(
-                  <div key={r.id} className="hp-my-room-card" onClick={()=>navigate(`/room/${r.id}`)}>
-                    <div className="hp-my-room-cover">{r.emoji||'🎙'}</div>
-                    <div className="hp-my-room-info">
-                      <div className="hp-my-room-name">{r.name}</div>
-                      <div className="hp-my-room-meta"><span style={{fontSize:'11px',color:'var(--lv-muted)'}}>by {r.owner}</span></div>
-                    </div>
-                    <button className="hp-my-room-enter" onClick={e=>{ e.stopPropagation(); navigate(`/room/${r.id}`); }}>Enter</button>
-                  </div>
-                ))}
-                <div className="hp-recent-clear" onClick={()=>{ localStorage.removeItem(RECENT_KEY); setRecentRooms([]); }}>Clear History</div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
-
-      {/* ── BOTTOM NAV ── */}
       <div className="hp-bottom-nav">
         <div className={`hp-nav-item${mainTab==='me'?' active':''}`} onClick={()=>setMainTab('me')}>
           <span className="hp-nav-icon">🏠</span><span className="hp-nav-label">Home</span>
