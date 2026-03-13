@@ -307,6 +307,11 @@ export default function RoomPage() {
     try { streamRef.current = await getLocalStream(); } catch(e) { console.warn('No mic:', e); }
   };
   startVoiceRef.current = startVoice;
+
+  const stopVoice = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  };
   const triggerGiftAnim = emoji => { setGiftAnim(emoji); setTimeout(() => setGiftAnim(null), 1700); };
   const addSysMsg = text => {
     setMessages(prev => [...prev, { type:'s', message:text, _id: Date.now() + Math.random() }]);
