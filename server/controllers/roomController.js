@@ -12,7 +12,7 @@ exports.createRoom = async (req, res, next) => {
   try {
     const { name, tag, description, is_locked } = req.body;
     const room = await Room.create({ name, host_id: req.user.id, tag, description, is_locked });
-    await Seat.initSeats(room.id, 10);
+    await Seat.initSeats(room.id, 8);
     res.status(201).json(room);
   } catch (err) { next(err); }
 };
