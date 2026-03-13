@@ -263,6 +263,14 @@ export default function RoomPage() {
   // Sync coins from auth on mount
   useEffect(() => { if (user?.coins) setCoins(user.coins); }, [user?.coins]);
 
+  // Check if current user follows the host
+  useEffect(() => {
+    if (!room?.host_id || room.host_id === user?.id) return;
+    api.get(`/users/${room.host_id}/follow`)
+      .then(({ data }) => setFollowing(data.following))
+      .catch(() => {});
+  }, [room?.host_id]);
+
   // ── Helpers ──────────────────────────────────────────────────────────────
   const attachAudio = (peerId, stream) => {
     let a = document.getElementById(`audio-${peerId}`);
