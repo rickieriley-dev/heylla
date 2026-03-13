@@ -123,6 +123,8 @@ function CreateRoomModal({ open, onClose, onCreated, hasExistingRoom }){
 }
 
 // ── HomePage ───────────────────────────────────────────────────────
+const MY_ROOM_KEY = 'heylla_my_room';
+
 export default function HomePage(){
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -135,8 +137,20 @@ export default function HomePage(){
   const [followStatus,setFollowStatus]= useState('idle');
   const [recentRooms, setRecentRooms] = useState([]);
   const [showCreate,  setShowCreate]  = useState(false);
-  const [myRoom,      setMyRoom]      = useState(null);
   const [myRoomLoading, setMyRoomLoading] = useState(false);
+
+  // ── myRoom — load from localStorage immediately so no flicker ──
+  const [myRoom, setMyRoomState] = useState(()=>{
+    try{ return JSON.parse(localStorage.getItem(MY_ROOM_KEY)) || null; }
+    catch(e){ return null; }
+  });
+  const setMyRoom = (room)=>{
+    setMyRoomState(room);
+    try{
+      if(room) localStorage.setItem(MY_ROOM_KEY, JSON.stringify(room));
+      else localStorage.removeItem(MY_ROOM_KEY);
+    }catch(e){}
+  };
 
   const pollTimer    = useRef(null);
   const fetchPending = useRef(false);
@@ -146,13 +160,11 @@ export default function HomePage(){
     setMyRoomLoading(true);
     try {
       const { data } = await api.get('/rooms/mine');
-      console.log('[loadMyRoom] response:', data);
       setMyRoom(data || null);
     } catch (e) {
-      console.log('[loadMyRoom] error (treating as no room):', e?.response?.status, e?.message);
-      setMyRoom(null);
+      // on error keep whatever is cached — don't wipe it
     }
-    setMyRoomLoading(false); // outside finally to ensure it always runs
+    setMyRoomLoading(false);
   }, []);
 
   // ── Load live rooms ──────────────────────────────────────────
