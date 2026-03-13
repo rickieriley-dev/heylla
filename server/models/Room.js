@@ -34,8 +34,10 @@ const Room = {
   },
   async findByHostId(host_id) {
     const { rows } = await db.query(
-      `SELECT r.*, u.username as host_username, u.avatar_url as host_avatar,
-       COUNT(DISTINCT s.user_id) as listener_count
+      `SELECT r.id, r.name, r.tag, r.description, r.is_active, r.is_locked,
+              r.host_id, r.created_at, r.listener_count,
+              u.username as host_username, u.avatar_url as host_avatar,
+              COUNT(DISTINCT s.user_id) as listener_count
        FROM rooms r
        JOIN users u ON r.host_id = u.id
        LEFT JOIN seats s ON s.room_id = r.id AND s.is_occupied = true
