@@ -147,13 +147,13 @@ export default function HomePage(){
     setMyRoomLoading(true);
     try {
       const { data } = await api.get('/rooms/mine');
+      console.log('[loadMyRoom] response:', data);
       setMyRoom(data || null);
     } catch (e) {
-      // 500 or network error — treat as no room so user can still create
+      console.log('[loadMyRoom] error (treating as no room):', e?.response?.status, e?.message);
       setMyRoom(null);
-    } finally {
-      setMyRoomLoading(false);
     }
+    setMyRoomLoading(false); // outside finally to ensure it always runs
   }, []);
 
   // ── Load live rooms ──────────────────────────────────────────
@@ -223,8 +223,8 @@ export default function HomePage(){
 
   // ── + button handler ─────────────────────────────────────────
   const handlePlusBtn = ()=>{
-    if(myRoom) navigate(`/room/${myRoom.id}`); // already has room → go there
-    else setShowCreate(true);                   // no room yet → create
+    if(myRoom) navigate(`/room/${myRoom.id}`);
+    else setShowCreate(true);
   };
 
   return (
@@ -303,7 +303,7 @@ export default function HomePage(){
               <button className="hp-my-room-enter" onClick={e=>{ e.stopPropagation(); navigate(`/room/${myRoom.id}`); }}>Enter</button>
             </div>
           ) : (
-            <div className="hp-my-room-empty" onClick={()=>setShowCreate(true)}>
+            <div className="hp-my-room-empty" onClick={()=>{ console.log('[Me tab] Create room tapped'); setShowCreate(true); }}>
               <div className="hp-my-room-empty-icon">🎙️</div>
               <div className="hp-my-room-empty-text">Create your room</div>
               <div className="hp-my-room-empty-sub">Tap to get started</div>
