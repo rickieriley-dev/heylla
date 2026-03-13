@@ -705,9 +705,7 @@ body {
   position: fixed; inset: 0; z-index: 200;
   background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
   display: flex; align-items: flex-end; justify-content: center;
-  opacity: 0; pointer-events: none; transition: opacity 0.22s;
 }
-.hp-modal-overlay.open { opacity: 1; pointer-events: auto; }
 .hp-modal-sheet {
   background: var(--lv-card); border-radius: 24px 24px 0 0;
   width: 100%; max-width: 480px; padding: 0 0 32px;
