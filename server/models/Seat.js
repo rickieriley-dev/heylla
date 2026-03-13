@@ -32,7 +32,7 @@ const Seat = {
     );
     await redis.del(`seats:${room_id}`);
   },
-  async initSeats(room_id, count = 10) {
+  async initSeats(room_id, count = 8) {
     const values = Array.from({ length: count }, (_, i) =>
       `(${room_id}, ${i + 1})`
     ).join(',');
