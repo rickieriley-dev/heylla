@@ -123,7 +123,6 @@ module.exports = (io, socket) => {
     const rid = String(roomId);
     if (!(await isHostOrAdmin(rid, socket.user.id))) return;
     await db.query('UPDATE seats SET is_muted=$1 WHERE room_id=$2 AND seat_number=$3', [muted, rid, seatNumber]);
-    await redis.del(`seats:${rid}`);
     const seats = await Seat.getSeats(rid);
     io.to(rid).emit('room:seats', seats);
     io.to(rid).emit('seat:force_mute', { seatNumber, muted });
@@ -134,7 +133,6 @@ module.exports = (io, socket) => {
     const rid = String(roomId);
     if (!(await isHostOrAdmin(rid, socket.user.id))) return;
     await db.query('UPDATE seats SET is_locked=$1 WHERE room_id=$2 AND seat_number=$3', [locked, rid, seatNumber]);
-    await redis.del(`seats:${rid}`);
     const seats = await Seat.getSeats(rid);
     io.to(rid).emit('room:seats', seats); // broadcast to ALL users in room
   });
@@ -147,7 +145,6 @@ module.exports = (io, socket) => {
       `UPDATE seats SET user_id=NULL, is_occupied=false, joined_at=NULL WHERE room_id=$1 AND seat_number=$2`,
       [rid, seatNumber]
     );
-    await redis.del(`seats:${rid}`);
     const seats = await Seat.getSeats(rid);
     io.to(rid).emit('room:seats', seats);
   });
@@ -222,7 +219,6 @@ module.exports = (io, socket) => {
           await db.query(`INSERT INTO seats (room_id, seat_number) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [rid, n]);
         }
       }
-      await redis.del(`seats:${rid}`);
       const seats = await Seat.getSeats(rid);
       io.to(rid).emit('room:seats', seats);
     }
@@ -233,7 +229,6 @@ module.exports = (io, socket) => {
     const rid = String(roomId);
     if (!(await isHost(rid, socket.user.id))) return;
     await db.query(`UPDATE seats SET user_id=NULL, is_occupied=false, joined_at=NULL WHERE room_id=$1`, [rid]);
-    await redis.del(`seats:${rid}`);
     await Room.deactivate(rid);
     io.to(rid).emit('room:closed');
   });
