@@ -112,6 +112,10 @@ export default function RoomPage() {
       setGiftToast({ sender: from.username, emoji: giftType || '🎁', name: giftName, qty });
       clearTimeout(giftToastTmr.current);
       giftToastTmr.current = setTimeout(() => setGiftToast(null), 2800);
+      // Show success message only to the sender
+      if (from.id === user?.id) {
+        addSysMsg(`🎁 You sent ${giftType} ${giftName} ×${qty}!`);
+      }
     });
     // Sync coin balance after sending a gift
     socket.on('coins:updated', ({ coins }) => {
@@ -265,8 +269,7 @@ export default function RoomPage() {
     sendingRef.current = true;
     const targets = giftRecips.length > 0 ? giftRecips : occupiedSeats;
     targets.forEach(t => socket.emit('gift:send', { roomId, giftType:selGift.emoji, giftName:selGift.name, qty:giftQty, targetUserId:t.user_id }));
-    triggerGiftAnim(selGift.emoji);
-    addSysMsg(`🎁 You sent ${selGift.emoji} ${selGift.name} ×${giftQty}!`);
+    // Do NOT show success here — wait for server's gift:received (success) or gift:error (fail)
     closeSheet();
     setTimeout(() => { sendingRef.current = false; }, 500);
   };
