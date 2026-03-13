@@ -249,11 +249,25 @@ body {
 .lv-settings-sh { background:var(--lv-card2); max-height:92dvh; overflow-y:auto; padding-bottom:8px; }
 .lv-settings-body { padding:0 16px; display:flex; flex-direction:column; gap:14px; }
 .lv-sf-group { display:flex; flex-direction:column; gap:6px; }
+.lv-sf-row { flex-direction:row; align-items:center; justify-content:space-between; }
 .lv-sf-label { font-size:11px; font-weight:700; color:var(--lv-muted); text-transform:uppercase; letter-spacing:.05em; }
+.lv-sf-hint { font-size:10px; color:var(--lv-muted); text-transform:none; font-weight:400; }
 .lv-sf-input { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px 14px; color:var(--lv-text); font-size:14px; outline:none; resize:none; width:100%; font-family:inherit; }
 .lv-sf-input:focus { border-color:var(--lv-accent); }
 .lv-sf-btn-outline { background:rgba(255,255,255,0.06); border:1.5px solid rgba(255,255,255,0.12); border-radius:12px; padding:13px; color:var(--lv-text); font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.2s; }
 .lv-sf-btn-outline:hover { background:rgba(167,139,250,0.1); border-color:var(--lv-accent); }
+.lv-sf-toggle { width:46px; height:26px; border-radius:13px; background:rgba(255,255,255,0.12); position:relative; cursor:pointer; transition:background 0.25s; flex-shrink:0; }
+.lv-sf-toggle.on { background:var(--lv-accent); }
+.lv-sf-toggle-ball { width:20px; height:20px; border-radius:50%; background:#fff; position:absolute; top:3px; left:3px; transition:left 0.25s; }
+.lv-sf-toggle.on .lv-sf-toggle-ball { left:23px; }
+.lv-theme-picker { display:flex; gap:8px; flex-wrap:wrap; }
+.lv-theme-opt { padding:8px 14px; border-radius:20px; border:1.5px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:var(--lv-text); font-size:13px; font-weight:600; cursor:pointer; transition:all 0.18s; white-space:nowrap; }
+.lv-theme-opt:hover { border-color:var(--lv-accent); background:rgba(167,139,250,0.1); }
+.lv-theme-opt.active { background:linear-gradient(135deg,var(--lv-accent),var(--lv-accent2)); border-color:transparent; color:#fff; }
+.lv-micmode-picker { display:flex; gap:8px; flex-wrap:wrap; }
+.lv-mm-opt { padding:8px 16px; border-radius:20px; border:1.5px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:var(--lv-text); font-size:13px; font-weight:700; cursor:pointer; transition:all 0.18s; }
+.lv-mm-opt:hover { border-color:var(--lv-accent); background:rgba(167,139,250,0.1); }
+.lv-mm-opt.active { background:linear-gradient(135deg,var(--lv-accent),var(--lv-accent2)); border-color:transparent; color:#fff; }
 .lv-create-btn-full { width:100%; background:linear-gradient(135deg,var(--lv-accent),var(--lv-accent2)); border:none; border-radius:12px; padding:14px; color:#fff; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; }
 
 /* ── Generic list sheet ── */
