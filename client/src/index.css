@@ -89,3 +89,45 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .mic-btn { width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,0.1); border:none; font-size:18px; cursor:pointer; flex-shrink:0; transition:all 0.15s; }
 .mic-btn.muted { background:rgba(239,68,68,0.2); border:1px solid #ef4444; }
 .mic-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+/* ROOM ANNOUNCEMENT */
+.room-announcement { background:rgba(56,189,248,0.1); border-left:3px solid #38bdf8; margin:0 14px 8px; padding:8px 12px; border-radius:0 8px 8px 0; font-size:12px; color:#93c5fd; }
+
+/* SEAT STATES */
+.seat-circle.locked { background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.4); }
+.seat-circle.seat-muted { opacity:0.6; }
+.mute-badge { position:absolute; bottom:-2px; right:-2px; font-size:10px; }
+.seat { position:relative; }
+.admin-badge { font-size:9px; background:#7c3aed; color:#fff; border-radius:4px; padding:1px 5px; margin-top:1px; }
+.host-badge { font-size:9px; background:#f97316; color:#fff; border-radius:4px; padding:1px 5px; margin-top:1px; }
+
+/* GIFT MODAL */
+.gift-modal { width:360px; max-width:95vw; }
+.gift-target-row { display:flex; align-items:center; gap:8px; margin-bottom:16px; font-size:13px; color:#555; }
+.gift-target-row select { flex:1; padding:8px; border-radius:8px; border:1.5px solid #e0e0e0; font-size:13px; outline:none; }
+.gift-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.gift-item { display:flex; flex-direction:column; align-items:center; gap:4px; background:#f8fafc; border:1.5px solid #e0e0e0; border-radius:12px; padding:10px 6px; cursor:pointer; transition:all 0.15s; }
+.gift-item:hover { border-color:#38bdf8; background:#eff9ff; transform:scale(1.05); }
+.gift-emoji { font-size:28px; }
+.gift-name { font-size:11px; color:#555; font-weight:500; }
+.gift-cost { font-size:11px; color:#f97316; font-weight:600; }
+
+/* SEAT MENU */
+.seat-menu { width:280px; }
+.seat-menu-user { color:#888; font-size:13px; margin-bottom:12px; }
+.seat-menu-actions { display:flex; flex-direction:column; gap:8px; }
+.seat-menu-actions button { padding:11px; border-radius:10px; border:1.5px solid #e0e0e0; background:#f8fafc; font-size:14px; cursor:pointer; text-align:left; transition:all 0.15s; }
+.seat-menu-actions button:hover { background:#eff9ff; border-color:#38bdf8; }
+
+/* SETTINGS MODAL */
+.settings-modal { width:360px; max-width:95vw; max-height:90vh; overflow-y:auto; }
+.settings-form { display:flex; flex-direction:column; gap:10px; }
+.settings-form label { font-size:12px; font-weight:600; color:#555; margin-bottom:-6px; }
+.settings-form input, .settings-form textarea { padding:10px; border-radius:10px; border:1.5px solid #e0e0e0; font-size:14px; outline:none; resize:vertical; }
+.settings-btns { display:flex; gap:8px; margin-top:8px; }
+.btn-primary { flex:1; background:linear-gradient(90deg,#38bdf8,#818cf8); border:none; border-radius:10px; padding:11px; color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+.btn-secondary { flex:1; background:#f8fafc; border:1.5px solid #e0e0e0; border-radius:10px; padding:11px; font-size:14px; font-weight:500; cursor:pointer; }
+
+/* ADMIN ROW */
+.admin-row { display:flex; align-items:center; justify-content:space-between; padding:10px; background:#f8fafc; border-radius:10px; margin-bottom:8px; font-size:14px; }
+.admin-row button { background:#fee2e2; border:none; border-radius:8px; padding:5px 12px; color:#dc2626; font-size:12px; cursor:pointer; }
