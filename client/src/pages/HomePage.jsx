@@ -186,9 +186,8 @@ export default function HomePage(){
   const loadFollowing = useCallback(async ()=>{
     setFollowStatus('loading');
     try{
-      // Falls back to all rooms until a /following endpoint is added
-      const { data } = await api.get('/rooms');
-      const list = Array.isArray(data) ? data : (data.rooms||[]);
+      const { data } = await api.get('/users/following-rooms');
+      const list = Array.isArray(data) ? data : [];
       setFollowing(list);
       setFollowStatus(list.length ? 'ok' : 'empty');
     }catch(e){ setFollowStatus('error'); }
