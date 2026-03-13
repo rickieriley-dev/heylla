@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import api from '../utils/api';
 
 // ── Constants ──────────────────────────────────────────────────────
@@ -128,6 +129,7 @@ const MY_ROOM_KEY = 'heylla_my_room';
 export default function HomePage(){
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const socket = useSocket();
 
   const [mainTab,     setMainTab]     = useState('popular');
   const [subTab,      setSubTab]      = useState('following');
@@ -192,6 +194,33 @@ export default function HomePage(){
       setFollowStatus(list.length ? 'ok' : 'empty');
     }catch(e){ setFollowStatus('error'); }
   },[]);
+
+  // ── Realtime: socket updates from lobby events ───────────────
+  useEffect(()=>{
+    if(!socket) return;
+
+    // Server pushes updated room list whenever someone joins/leaves/creates/ends
+    const onRoomsUpdated = (updatedRooms) => {
+      const list = Array.isArray(updatedRooms) ? updatedRooms : [];
+      setRooms(list);
+      setRoomsStatus(list.length ? 'ok' : 'empty');
+    };
+
+    // Server pushes live viewer count for a specific room
+    const onViewersUpdated = ({ roomId, count }) => {
+      setRooms(prev => prev.map(r =>
+        String(r.id) === String(roomId) ? { ...r, listener_count: count } : r
+      ));
+    };
+
+    socket.on('lobby:rooms_updated',   onRoomsUpdated);
+    socket.on('lobby:viewers_updated', onViewersUpdated);
+
+    return () => {
+      socket.off('lobby:rooms_updated',   onRoomsUpdated);
+      socket.off('lobby:viewers_updated', onViewersUpdated);
+    };
+  }, [socket]);
 
   // ── Polling ──────────────────────────────────────────────────
   useEffect(()=>{
