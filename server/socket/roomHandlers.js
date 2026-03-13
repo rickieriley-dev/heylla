@@ -242,6 +242,74 @@ module.exports = (io, socket) => {
     io.to(roomId).emit('voice:mute', { userId: socket.user.id, muted });
   });
 
+  // ── LEADERBOARD ──────────────────────────────────────────────────────────────
+  socket.on('room:leaderboard', async ({ roomId }) => {
+    const { rows: lb } = await db.query(
+      `SELECT rt.user_id, u.username, u.avatar_url, rt.amount,
+              (SELECT COUNT(*) FROM gifts WHERE room_id=$1 AND to_user_id=rt.user_id) AS gift_count
+       FROM room_trophies rt
+       JOIN users u ON u.id = rt.user_id
+       WHERE rt.room_id = $1
+       ORDER BY rt.amount DESC LIMIT 20`,
+      [roomId]
+    );
+    const { rows: roomRow } = await db.query('SELECT trophy FROM rooms WHERE id=$1', [roomId]);
+    socket.emit('room:leaderboard_data', {
+      leaderboard: lb,
+      total: roomRow[0]?.trophy || 0,
+    });
+  });
+
+  // ── PROFILE FETCH ────────────────────────────────────────────────────────────
+  socket.on('user:profile', async ({ userId }) => {
+    const { rows } = await db.query(
+      `SELECT u.id, u.username, u.avatar_url, u.level, u.coins,
+              (SELECT COUNT(*) FROM gifts WHERE to_user_id=u.id) AS fans
+       FROM users u WHERE u.id=$1`,
+      [userId]
+    );
+    if (rows[0]) socket.emit('user:profile_data', rows[0]);
+  });
+
+  // ── ROOM SETTINGS (extended: theme, mic_mode, is_locked, welcome_msg) ────────
+  socket.on('room:update_settings_full', async ({ roomId, name, announcement, password, welcome_msg, theme, mic_mode, is_locked }) => {
+    if (!(await isHost(roomId, socket.user.id))) return;
+    const fields = []; const vals = [];
+    let i = 1;
+    if (name        !== undefined) { fields.push(`name=$${i++}`);         vals.push(name); }
+    if (announcement!== undefined) { fields.push(`announcement=$${i++}`); vals.push(announcement); }
+    if (welcome_msg !== undefined) { fields.push(`welcome_msg=$${i++}`);  vals.push(welcome_msg); }
+    if (theme       !== undefined) { fields.push(`theme=$${i++}`);        vals.push(theme); }
+    if (typeof mic_mode === 'number') { fields.push(`mic_mode=$${i++}`);  vals.push(mic_mode); }
+    if (typeof is_locked === 'boolean') { fields.push(`is_locked=$${i++}`); vals.push(is_locked); }
+    if (password !== undefined && password !== '') {
+      const bcrypt = require('bcryptjs');
+      fields.push(`password=$${i++}`); vals.push(await bcrypt.hash(password, 10));
+    } else if (password === '') {
+      fields.push(`password=$${i++}`); vals.push(null);
+    }
+    if (!fields.length) return;
+    vals.push(roomId);
+    await db.query(`UPDATE rooms SET ${fields.join(',')} WHERE id=$${i}`, vals);
+    await redis.del(`room:${roomId}`);
+    const room = await Room.findById(roomId);
+    io.to(roomId).emit('room:settings_updated', room);
+    // If mic_mode changed, reinit seats
+    if (typeof mic_mode === 'number') {
+      const { rows: existingSeats } = await db.query('SELECT COUNT(*) FROM seats WHERE room_id=$1', [roomId]);
+      const current = parseInt(existingSeats[0].count);
+      if (current < mic_mode) {
+        const Seat = require('../models/Seat');
+        for (let n = current + 1; n <= mic_mode; n++) {
+          await db.query(`INSERT INTO seats (room_id, seat_number) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [roomId, n]);
+        }
+      }
+      await redis.del(`seats:${roomId}`);
+      const seats = await require('../models/Seat').getSeats(roomId);
+      io.to(roomId).emit('room:seats', seats);
+    }
+  });
+
   // ── DISCONNECT ───────────────────────────────────────────────────────────────
   socket.on('disconnect', async () => {
     const roomId = socket.currentRoom;
