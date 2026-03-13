@@ -41,7 +41,7 @@ const Room = {
        FROM rooms r
        JOIN users u ON r.host_id = u.id
        LEFT JOIN seats s ON s.room_id = r.id AND s.is_occupied = true
-       WHERE r.host_id = $1 AND r.is_active = true
+       WHERE r.host_id = $1
        GROUP BY r.id, u.username, u.avatar_url
        ORDER BY r.created_at DESC
        LIMIT 1`,
