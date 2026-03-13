@@ -147,8 +147,9 @@ export default function HomePage(){
     setMyRoomLoading(true);
     try {
       const { data } = await api.get('/rooms/mine');
-      setMyRoom(data);
+      setMyRoom(data || null);
     } catch (e) {
+      // 500 or network error — treat as no room so user can still create
       setMyRoom(null);
     } finally {
       setMyRoomLoading(false);
