@@ -29,6 +29,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/gifts', giftRoutes);
 
 initSocket(io);
+
+// Attach io to app so controllers can emit lobby events
+app.set('io', io);
+
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
