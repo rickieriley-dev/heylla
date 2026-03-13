@@ -198,7 +198,7 @@ body {
 .lv-prof-sh { background:#fff; color:#111; border-radius:24px 24px 0 0; overflow:hidden; }
 .lv-prof-sh .lv-mo.cancel { color:#555; background:#f5f5f5; border-radius:14px; margin:8px 16px; text-align:center; }
 .lv-ps-header-bg { height:90px; width:100%; background:linear-gradient(135deg,#a78bfa,#f472b6); position:relative; }
-.lv-ps-warn { position:absolute; top:14px; right:16px; width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.25); display:flex; align-items:center; justify-content:center; font-size:14px; cursor:pointer; color:#fff; font-weight:700; }
+.lv-ps-close { position:absolute; top:14px; right:16px; width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.25); display:flex; align-items:center; justify-content:center; font-size:14px; cursor:pointer; color:#fff; font-weight:700; }
 .lv-ps-ava-wrap { display:flex; justify-content:center; margin-top:-50px; position:relative; z-index:3; }
 .lv-ps-ava-ring { width:100px; height:100px; border-radius:50%; border:4px solid #fff; background:linear-gradient(135deg,#a78bfa,#f472b6); display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(0,0,0,0.18); overflow:hidden; }
 .lv-ps-ava-inner { width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:48px; font-weight:700; }
@@ -320,6 +320,7 @@ body {
 
 /* ── Gift broadcast toast ── */
 .lv-gift-broadcast { position:fixed; top:80px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.85); color:#fff; padding:10px 20px; border-radius:20px; font-size:14px; font-weight:700; z-index:9999; pointer-events:none; text-align:center; animation:fadeInToast .3s ease; }
+.lv-gift-error { position:fixed; top:120px; left:50%; transform:translateX(-50%); background:rgba(220,38,38,.92); color:#fff; padding:10px 20px; border-radius:20px; font-size:13px; font-weight:700; z-index:9999; pointer-events:none; text-align:center; animation:fadeInToast .3s ease; white-space:nowrap; }
 @keyframes fadeInToast { from{opacity:0;transform:translateX(-50%) translateY(-10px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
 
 /* ── Host exit modal ── */
