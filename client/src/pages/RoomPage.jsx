@@ -38,8 +38,9 @@ export default function RoomPage() {
   const [seats,     setSeats]     = useState([]);
   const [messages,  setMessages]  = useState([]);
   const [admins,    setAdmins]    = useState([]);
-  const [viewers,   setViewers]   = useState(0);
-  const [trophy,    setTrophy]    = useState(0);
+  const [viewers,      setViewers]      = useState(0);
+  const [trophy,       setTrophy]       = useState(0);
+  const [userTrophies, setUserTrophies] = useState({}); // { userId: totalCoins }
   const [muted,     setMuted]     = useState(false);
   const [volOn,     setVolOn]     = useState(true);
   const [following, setFollowing] = useState(false);
@@ -53,9 +54,10 @@ export default function RoomPage() {
   const [giftQty,    setGiftQty]    = useState(1);
   const [giftRecips, setGiftRecips] = useState([]);
 
-  const [micReq,   setMicReq]   = useState(null);
-  const [giftToast,setGiftToast]= useState(null);
-  const [giftAnim, setGiftAnim] = useState(null);
+  const [micReq,    setMicReq]    = useState(null);
+  const [giftToast, setGiftToast] = useState(null);
+  const [giftError, setGiftError] = useState(null);
+  const [giftAnim,  setGiftAnim]  = useState(null);
 
   const [sfName, setSfName] = useState('');
   const [sfAnn,  setSfAnn]  = useState('');
@@ -69,6 +71,7 @@ export default function RoomPage() {
   const sendingRef   = useRef(false);
   const micReqTimer  = useRef(null);
   const giftToastTmr = useRef(null);
+  const giftErrorTmr = useRef(null);
   const bubbleRef    = useRef(null);
   const bubbleDrag   = useRef({ dragging:false, moved:false, startX:0, startY:0, startL:0, startT:0 });
 
@@ -97,19 +100,42 @@ export default function RoomPage() {
         return next;
       });
     });
-    socket.on('gift:received', ({ from, giftType, giftName, qty }) => {
-      const cost = GIFTS.find(g => g.emoji===giftType)?.cost||0;
-      setTrophy(t => t + cost*qty);
-      triggerGiftAnim(giftType||'🎁');
-      setGiftToast({ sender: from.username, emoji: giftType||'🎁', name: giftName, qty });
+    socket.on('gift:received', ({ from, to, giftType, giftName, qty, totalCost }) => {
+      // Use server-authoritative totalCost; fall back to client lookup if missing
+      const cost = totalCost ?? (GIFTS.find(g => g.emoji === giftType)?.cost ?? 0) * (qty ?? 1);
+      setTrophy(t => t + cost);
+      // Track per-user trophy earnings for leaderboard
+      if (to) {
+        setUserTrophies(prev => ({ ...prev, [to]: (prev[to] || 0) + cost }));
+      }
+      triggerGiftAnim(giftType || '🎁');
+      setGiftToast({ sender: from.username, emoji: giftType || '🎁', name: giftName, qty });
       clearTimeout(giftToastTmr.current);
       giftToastTmr.current = setTimeout(() => setGiftToast(null), 2800);
+    });
+    // Sync coin balance after sending a gift
+    socket.on('coins:updated', ({ coins }) => {
+      // Bubble up to AuthContext if it exposes a setter; otherwise handled locally
+      if (typeof user === 'object' && user !== null) user.coins = coins;
+    });
+    // Show error if gift send fails (e.g. insufficient coins)
+    socket.on('gift:error', (msg) => {
+      setGiftError(typeof msg === 'string' ? msg : 'Could not send gift');
+      clearTimeout(giftErrorTmr.current);
+      giftErrorTmr.current = setTimeout(() => setGiftError(null), 3000);
     });
     socket.on('seat:mic_request', ({ userId, username, seatNumber }) => {
       if (!isHost) return;
       setMicReq({ userId, username, seatNumber });
       clearTimeout(micReqTimer.current);
       micReqTimer.current = setTimeout(() => setMicReq(null), 15000);
+    });
+    // Fix: handle host approval — take the seat automatically
+    socket.on('seat:approved', ({ userId: approvedId, seatNumber }) => {
+      if (approvedId !== user?.id) return;
+      socket.emit('seat:take', { roomId, seatNumber });
+      startVoice();
+      addSysMsg(`✅ Host approved! You joined Mic ${seatNumber}.`);
     });
     socket.on('seat:invite', ({ userId, seatNumber, fromName }) => {
       if (userId !== user?.id) return;
@@ -143,12 +169,14 @@ export default function RoomPage() {
     return () => {
       socket.emit('room:leave', { roomId });
       ['room:seats','room:viewers','room:info','room:admins','room:settings_updated',
-       'chat:message','gift:received','seat:mic_request','seat:invite','seat:force_mute',
+       'chat:message','gift:received','gift:error','coins:updated',
+       'seat:mic_request','seat:invite','seat:approved','seat:force_mute',
        'room:closed','voice:offer','voice:answer','voice:ice','voice:mute'
       ].forEach(e => socket.off(e));
       streamRef.current?.getTracks().forEach(t => t.stop());
       clearTimeout(micReqTimer.current);
       clearTimeout(giftToastTmr.current);
+      clearTimeout(giftErrorTmr.current);
     };
   }, [socket, roomId]);
 
@@ -330,6 +358,13 @@ export default function RoomPage() {
         </div>
       )}
 
+      {/* GIFT ERROR TOAST */}
+      {giftError && (
+        <div className="lv-gift-error">
+          ❌ {giftError}
+        </div>
+      )}
+
       {/* TOP BAR */}
       <div className="lv-topbar">
         <div className="lv-tl">
@@ -475,7 +510,7 @@ export default function RoomPage() {
       {sheet==='profile' && profileData && (
         <div className="lv-sheet lv-prof-sh open">
           <div className="lv-ps-header-bg">
-            <div className="lv-ps-warn" onClick={closeSheet}>✕</div>
+            <div className="lv-ps-close" onClick={closeSheet}>✕</div>
           </div>
           <div className="lv-ps-ava-wrap">
             <div className="lv-ps-ava-ring">
@@ -628,7 +663,9 @@ export default function RoomPage() {
           </div>
           <div className="lv-lb-list">
             {occupiedSeats.length===0 && <div className="lv-list-empty">No gifts yet 🎁</div>}
-            {occupiedSeats.map((s,i) => (
+            {[...occupiedSeats]
+              .sort((a, b) => (userTrophies[b.user_id] || 0) - (userTrophies[a.user_id] || 0))
+              .map((s, i) => (
               <div key={s.user_id} className={`lv-lb-card${i===0?' lv-lb-top1':i===1?' lv-lb-top2':i===2?' lv-lb-top3':''}`}>
                 <div className="lv-lb-rank">{['🥇','🥈','🥉'][i]||`#${i+1}`}</div>
                 <div className="lv-lb-ava">{s.username?.[0]?.toUpperCase()}</div>
@@ -636,7 +673,7 @@ export default function RoomPage() {
                   <div className="lv-lb-uname">{s.username}</div>
                   <div className="lv-lb-sub">Lv.1 · Mic {s.seat_number}</div>
                 </div>
-                <div className="lv-lb-coins">🏆 {((i+1)*100).toLocaleString()}</div>
+                <div className="lv-lb-coins">🏆 {(userTrophies[s.user_id] || 0).toLocaleString()}</div>
               </div>
             ))}
           </div>
