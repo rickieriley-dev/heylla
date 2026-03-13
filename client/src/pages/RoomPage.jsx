@@ -120,6 +120,7 @@ export default function RoomPage() {
   const bubbleRef    = useRef(null);
   const bubbleDrag   = useRef({ dragging:false, moved:false, startX:0, startY:0, startL:0, startT:0 });
   const voiceStartPending = useRef(false);
+  const startVoiceRef = useRef(null);
 
   const isHost        = room?.host_id === user?.id;
   const isAdmin       = admins.includes(user?.id);
@@ -139,7 +140,7 @@ export default function RoomPage() {
         const confirmed = newSeats.find(s => s.user_id === user?.id && s.is_occupied);
         if (confirmed) {
           voiceStartPending.current = false;
-          startVoice();
+          startVoiceRef.current?.();
         }
       }
     });
@@ -305,6 +306,7 @@ export default function RoomPage() {
   const startVoice = async () => {
     try { streamRef.current = await getLocalStream(); } catch(e) { console.warn('No mic:', e); }
   };
+  startVoiceRef.current = startVoice;
   const triggerGiftAnim = emoji => { setGiftAnim(emoji); setTimeout(() => setGiftAnim(null), 1700); };
   const addSysMsg = text => {
     setMessages(prev => [...prev, { type:'s', message:text, _id: Date.now() + Math.random() }]);
