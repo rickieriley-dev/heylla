@@ -18,7 +18,7 @@ const Room = {
        LEFT JOIN seats s ON s.room_id = r.id AND s.is_occupied = true
        WHERE r.is_active = true
        GROUP BY r.id, u.username, u.avatar_url
-       ORDER BY COUNT(DISTINCT s.user_id) DESC
+       ORDER BY COUNT(DISTINCT s.user_id) DESC`
     );
     return rows;
   },
