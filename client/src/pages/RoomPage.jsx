@@ -170,6 +170,20 @@ export default function RoomPage() {
       setGiftToast({ sender: from.username, emoji: giftType || '🎁', name: giftName, qty });
       clearTimeout(giftToastTmr.current);
       giftToastTmr.current = setTimeout(() => setGiftToast(null), 2800);
+      // Add gift message to chat so everyone sees it
+      setMessages(prev => {
+        const next = [...prev.slice(-100), {
+          type: 'gift',
+          userId: from.id,
+          username: from.username,
+          giftEmoji: giftType || '🎁',
+          giftName,
+          qty,
+          _id: Date.now() + Math.random(),
+        }];
+        setTimeout(() => { chatRef.current && (chatRef.current.scrollTop = chatRef.current.scrollHeight); }, 40);
+        return next;
+      });
     });
 
     socket.on('coins:updated', ({ coins: c }) => setCoins(c));
@@ -329,10 +343,26 @@ export default function RoomPage() {
     clearTimeout(micReqTimer.current);
   };
   const hostMuteSeat = (sn, m)  => { socket.emit('host:mute_seat',    { roomId, seatNumber: sn, muted: m });    closeSheet(); };
-  const hostLockSeat = (sn, lk) => { socket.emit('host:lock_seat',    { roomId, seatNumber: sn, locked: lk });  closeSheet(); };
+  const hostLockSeat = (sn, lk) => {
+    socket.emit('host:lock_seat', { roomId, seatNumber: sn, locked: lk });
+    // Optimistically update activeSeat so the UI reflects the change immediately
+    setActiveSeat(prev => prev ? { ...prev, is_locked: lk } : prev);
+    // Don't closeSheet so host can see it changed
+  };
   const hostKickSeat = sn       => { socket.emit('host:kick_seat',    { roomId, seatNumber: sn });               closeSheet(); };
   const hostSetAdmin = uid      => { socket.emit('host:set_admin',    { roomId, userId: uid });                  closeSheet(); };
   const hostRemAdmin = uid      => { socket.emit('host:remove_admin', { roomId, userId: uid }); };
+
+  // ── Mention ───────────────────────────────────────────────────────────────
+  const mentionUser = (username) => {
+    setChatInput(prev => `${prev}@${username} `);
+    closeSheet();
+    // Focus the chat input
+    setTimeout(() => {
+      const input = document.querySelector('.lv-say-hi input');
+      if (input) input.focus();
+    }, 100);
+  };
 
   // ── Chat ──────────────────────────────────────────────────────────────────
   const sendChat = e => {
@@ -365,9 +395,17 @@ export default function RoomPage() {
   const sendGift = () => {
     if (sendingRef.current) return;
     const total = selGift.cost * giftQty * Math.max(1, giftRecips.length);
-    if (coins < total) { setGiftError('Not enough coins! 🪙'); return; }
+    if (coins < total) {
+      setGiftError(`Not enough coins! Need 🪙${total.toLocaleString()}, you have 🪙${coins.toLocaleString()}`);
+      return;
+    }
     sendingRef.current = true;
     const targets = giftRecips.length > 0 ? giftRecips : occupiedSeats;
+    if (targets.length === 0) {
+      setGiftError('No one on mic to send to!');
+      sendingRef.current = false;
+      return;
+    }
     targets.forEach(t => socket.emit('gift:send', { roomId, giftType: selGift.emoji, giftName: selGift.name, qty: giftQty, targetUserId: t.user_id }));
     closeSheet();
     setTimeout(() => { sendingRef.current = false; }, 500);
@@ -561,6 +599,13 @@ export default function RoomPage() {
               <span className="lv-sys-txt">{m.message}</span>
             </div>
           );
+          if (m.type === 'gift') return (
+            <div key={m._id||i} className="lv-msg lv-sys">
+              <span className="lv-sys-txt" style={{color:'#f472b6'}}>
+                {m.giftEmoji} <b>{m.username}</b> sent {m.giftName} ×{m.qty} 🎉
+              </span>
+            </div>
+          );
           const isHostMsg  = m.userId === room?.host_id;
           const isAdminMsg = admins.includes(m.userId);
           return (
@@ -669,7 +714,7 @@ export default function RoomPage() {
               <div className="lv-ps-act-icon lv-ps-act-chat">💬</div>
               <div className="lv-ps-act-label">Chat</div>
             </div>
-            <div className="lv-ps-act-btn">
+            <div className="lv-ps-act-btn" onClick={() => mentionUser(profileData.username)}>
               <div className="lv-ps-act-icon lv-ps-act-at">@</div>
               <div className="lv-ps-act-label">Mention</div>
             </div>
