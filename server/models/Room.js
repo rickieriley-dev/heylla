@@ -11,7 +11,7 @@ const Room = {
   },
   async findAll() {
     const { rows } = await db.query(
-      `SELECT r.*, u.username as host_name, u.avatar_url as host_avatar,
+      `SELECT r.*, u.username as host_name, u.username as host_username, u.avatar_url as host_avatar,
        COUNT(DISTINCT s.user_id) as listener_count
        FROM rooms r
        JOIN users u ON r.host_id = u.id
