@@ -3,7 +3,7 @@ const voiceHandlers = require('./voiceHandlers');
 const giftHandlers = require('./giftHandlers');
 const jwt = require('jsonwebtoken');
 
-exports.initSocket = (io) => {
+const initSocket = (io) => {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Auth required'));
@@ -14,12 +14,10 @@ exports.initSocket = (io) => {
   });
 
   io.on('connection', (socket) => {
-    console.log(`Connected: ${socket.user.username}`);
     roomHandlers(io, socket);
     voiceHandlers(io, socket);
     giftHandlers(io, socket);
-    socket.on('disconnect', () => {
-      console.log(`Disconnected: ${socket.user.username}`);
-    });
   });
 };
+
+module.exports = { initSocket };
