@@ -46,13 +46,19 @@ module.exports = (io, socket) => {
       getAdminIds(roomId),
     ]);
 
+    // If host rejoins their own inactive room, reactivate it (go live again)
+    if (room && !room.is_active && room.host_id === socket.user.id) {
+      await db.query('UPDATE rooms SET is_active=true WHERE id=$1', [roomId]);
+      room.is_active = true;
+    }
+
     socket.emit('room:seats', seats);
     socket.emit('room:info', { room, admins: adminIds });
     io.to(roomId).emit('room:user_joined', {
       userId: socket.user.id,
       username: socket.user.username,
     });
-    await broadcastViewerCount(io, roomId); // Fix #9: emit viewer count
+    await broadcastViewerCount(io, roomId);
   });
 
   socket.on('room:leave', async ({ roomId }) => {
@@ -211,15 +217,17 @@ module.exports = (io, socket) => {
     io.to(roomId).emit('room:settings_updated', room);
   });
 
-  // room:end — host ends the session but room stays active for next time
+  // room:end — hide from Popular (is_active=false) but keep for host's Me tab
   socket.on('room:end', async ({ roomId }) => {
     if (!(await isHost(roomId, socket.user.id))) return;
-    // Clear all seats but keep room active
+    // Clear all seats
     await db.query(
       `UPDATE seats SET user_id=NULL, is_occupied=false, joined_at=NULL WHERE room_id=$1`,
       [roomId]
     );
     await redis.del(`seats:${roomId}`);
+    // Set inactive so it disappears from Popular/Live list
+    await Room.deactivate(roomId);
     io.to(roomId).emit('room:closed'); // kicks everyone back to homepage
   });
 
