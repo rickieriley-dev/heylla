@@ -108,6 +108,18 @@ module.exports = (io, socket) => {
     io.to(roomId).emit('room:admins', admins.map(a => a.user_id));
   });
 
+  // HOST: KICK FROM SEAT
+  socket.on('host:kick_seat', async ({ roomId, seatNumber }) => {
+    if (!(await isHostOrAdmin(roomId, socket.user.id))) return;
+    await db.query(
+      'UPDATE seats SET user_id=NULL, is_occupied=false, joined_at=NULL WHERE room_id=$1 AND seat_number=$2',
+      [roomId, seatNumber]
+    );
+    await redis.del(`seats:${roomId}`);
+    const seats = await Seat.getSeats(roomId);
+    io.to(roomId).emit('room:seats', seats);
+  });
+
   // ROOM SETTINGS UPDATE
   socket.on('room:update_settings', async ({ roomId, name, announcement, password, cover_url }) => {
     if (!(await isHost(roomId, socket.user.id))) return;
