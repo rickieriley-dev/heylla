@@ -62,8 +62,7 @@ function CreateRoomModal({ open, onClose, onCreated, hasExistingRoom }){
     setLoading(true);
     try{
       const { data } = await api.post('/rooms', { name: name.trim(), tag, description: '' });
-      const roomId = data.id || data.room?.id || data;
-      onCreated(roomId);
+      onCreated(data);  // pass full room object
     }catch(e){
       alert(e.response?.data?.error||'Failed to create room');
     }finally{ setLoading(false); }
@@ -215,10 +214,10 @@ export default function HomePage(){
     navigate(`/room/${room.id}`);
   };
 
-  const handleRoomCreated = (roomId)=>{
+  const handleRoomCreated = (roomData)=>{
     setShowCreate(false);
-    loadMyRoom();
-    navigate(`/room/${roomId}`);
+    setMyRoom(roomData);           // set immediately from create response
+    navigate(`/room/${roomData.id}`);
   };
 
   // ── + button handler ─────────────────────────────────────────
