@@ -69,6 +69,10 @@ module.exports = (io, socket) => {
     const allSeats = await Seat.getSeats(roomId);
     const target = allSeats.find(s => s.seat_number === seatNumber);
     if (target?.is_locked) return socket.emit('seat:error', 'Seat is locked');
+
+    // Leave any existing seat first — prevents double avatar bug
+    await Seat.leaveSeat(roomId, socket.user.id);
+
     const seat = await Seat.takeSeat(roomId, seatNumber, socket.user.id);
     if (!seat) return socket.emit('seat:error', 'Seat already taken');
     const seats = await Seat.getSeats(roomId);
