@@ -240,6 +240,11 @@ export default function RoomPage() {
       setTimeout(() => navigate('/'), 2000);
     });
 
+    socket.on('room:error', ({ message }) => {
+      alert(message || 'Could not join room.');
+      navigate('/');
+    });
+
     // Leaderboard response
     socket.on('room:leaderboard_data', ({ leaderboard: lb, total }) => {
       setLeaderboard(lb || []);
@@ -276,7 +281,7 @@ export default function RoomPage() {
         'room:seats','room:viewers','room:info','room:admins','room:settings_updated',
         'chat:message','gift:received','gift:error','coins:updated',
         'seat:mic_request','seat:invite','seat:approved','seat:force_mute',
-        'room:closed','room:leaderboard_data','user:profile_data',
+        'room:closed','room:error','room:leaderboard_data','user:profile_data',
         'voice:offer','voice:answer','voice:ice','voice:mute',
       ].forEach(e => socket.off(e));
       streamRef.current?.getTracks().forEach(t => t.stop());
