@@ -104,8 +104,8 @@ body {
 .lv-tbtn:hover { background:rgba(167,139,250,0.2); }
 
 /* ── Mic Slots ── */
-.lv-mics-wrap { position:absolute; top:75px; left:0; right:0; z-index:5; padding:16px 16px 0; }
-.lv-mics-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px 4px; }
+.lv-mics-wrap { position:absolute; top:75px; left:0; right:0; z-index:5; padding:16px 20px 0; }
+.lv-mics-grid { display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(2,1fr); gap:10px 8px; }
 .lv-mic-slot { display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; position:relative; }
 .lv-mic-ring { width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; position:relative; transition:all 0.2s; background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.12); backdrop-filter:blur(8px); }
 .lv-mic-ring:hover { border-color:var(--lv-border2); background:rgba(167,139,250,0.1); }
