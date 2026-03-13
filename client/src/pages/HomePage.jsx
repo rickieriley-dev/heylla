@@ -1,93 +1,375 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
-const TAGS = { Singing: '#f97316', 'Making Friends': '#a855f7', Chatting: '#0ea5e9', Gaming: '#22c55e' };
+// ── Constants ──────────────────────────────────────────────────────
+const ROOM_COLORS = ['c1','c2','c3','c4','c5','c6'];
+const COVER_EMOJIS = ['🌙','🔥','🎵','💜','🌸','✨','🎭','🌿'];
+const TAGS = { Singing:'#f97316','Making Friends':'#a855f7',Chatting:'#0ea5e9',Gaming:'#22c55e' };
 
-export default function HomePage() {
+const MAX_RECENT = 6;
+const RECENT_KEY = 'heylla_recent_rooms';
+
+function saveRecentRoom(room){
+  try{
+    let list = JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');
+    list = list.filter(r=>r.id!==room.id);
+    list.unshift(room);
+    if(list.length>MAX_RECENT) list=list.slice(0,MAX_RECENT);
+    localStorage.setItem(RECENT_KEY,JSON.stringify(list));
+  }catch(e){}
+}
+function getRecentRooms(){
+  try{ return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]'); }catch(e){ return []; }
+}
+
+// ── RoomCard ───────────────────────────────────────────────────────
+function RoomCard({ room, index, onClick }){
+  const colorClass = ROOM_COLORS[index % ROOM_COLORS.length];
+  return (
+    <div className="hp-room-card" onClick={onClick}>
+      <div className={`hp-room-cover ${colorClass}`}>
+        <span className="hp-cover-emoji">{room.emoji || room.name?.[0] || '🎙'}</span>
+        <div className="hp-live-badge"><div className="hp-live-dot"></div><span>{room.listener_count||0}</span></div>
+        <div className="hp-mic-count">🎙 8</div>
+      </div>
+      <div className="hp-room-info">
+        <div className="hp-room-name-card">{room.name}</div>
+        <div className="hp-room-owner">
+          <div className="hp-owner-ava">
+            {room.host_avatar
+              ? <img src={room.host_avatar} alt="" loading="lazy"/>
+              : (room.host_username?.[0]?.toUpperCase()||'?')}
+          </div>
+          <span className="hp-owner-name">{room.host_username||room.tag||'Room'}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CreateRoomModal ────────────────────────────────────────────────
+function CreateRoomModal({ open, onClose, onCreated }){
+  const [name,          setName]          = useState('');
+  const [selectedEmoji, setSelectedEmoji] = useState('🌙');
+  const [tag,           setTag]           = useState('Chatting');
+  const [loading,       setLoading]       = useState(false);
+  const [nameErr,       setNameErr]       = useState(false);
+
+  const handleCreate = async () => {
+    if(!name.trim()){ setNameErr(true); return; }
+    setLoading(true);
+    try{
+      const { data } = await api.post('/rooms', { name: name.trim(), tag, description: '' });
+      const roomId = data.id || data.room?.id || data;
+      onCreated(roomId);
+    }catch(e){
+      alert(e.response?.data?.error||'Failed to create room');
+    }finally{ setLoading(false); }
+  };
+
+  const handleReset = () => { setName(''); setSelectedEmoji('🌙'); setTag('Chatting'); setNameErr(false); };
+
+  if(!open) return null;
+  return (
+    <div className="hp-modal-overlay" onClick={e=>{ if(e.target.classList.contains('hp-modal-overlay')){ handleReset(); onClose(); }}}>
+      <div className="hp-modal-sheet">
+        <div className="hp-modal-handle"></div>
+        <div className="hp-modal-title">Create a Room</div>
+        <div className="hp-modal-body">
+          <div>
+            <div className="hp-form-label">ROOM NAME</div>
+            <input
+              className="hp-form-input"
+              placeholder="e.g. Chill Vibes Only..."
+              maxLength={40}
+              value={name}
+              style={nameErr?{borderColor:'var(--lv-accent2)'}:{}}
+              onChange={e=>{ setName(e.target.value); setNameErr(false); }}
+              autoFocus
+            />
+          </div>
+          <div>
+            <div className="hp-form-label">CATEGORY</div>
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              {Object.keys(TAGS).map(t=>(
+                <div key={t} onClick={()=>setTag(t)} className={`hp-tag-pill${tag===t?' sel':''}`}
+                  style={{ '--tag-color': TAGS[t] }}>{t}</div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="hp-form-label">EMOJI COVER</div>
+            <div className="hp-emoji-picker">
+              {COVER_EMOJIS.map(e=>(
+                <div key={e} className={`hp-emoji-opt${selectedEmoji===e?' selected':''}`} onClick={()=>setSelectedEmoji(e)}>{e}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="hp-modal-footer">
+          <button className="hp-create-room-btn" onClick={handleCreate} disabled={loading}>
+            {loading?'Creating...':'Create Room'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── HomePage ───────────────────────────────────────────────────────
+export default function HomePage(){
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [rooms, setRooms] = useState([]);
-  const [tab, setTab] = useState('My');
-  const [showCreate, setShowCreate] = useState(false);
-  const [newRoom, setNewRoom] = useState({ name: '', tag: 'Chatting', description: '' });
 
-  useEffect(() => {
-    api.get('/rooms').then(r => setRooms(r.data)).catch(console.error);
-  }, []);
+  const [mainTab,     setMainTab]     = useState('popular');
+  const [subTab,      setSubTab]      = useState('following');
+  const [rooms,       setRooms]       = useState([]);
+  const [roomsStatus, setRoomsStatus] = useState('loading');
+  const [following,   setFollowing]   = useState([]);
+  const [followStatus,setFollowStatus]= useState('idle');
+  const [recentRooms, setRecentRooms] = useState([]);
+  const [showCreate,  setShowCreate]  = useState(false);
 
-  const createRoom = async (e) => {
-    e.preventDefault();
-    try {
-      const { data } = await api.post('/rooms', newRoom);
-      navigate(`/room/${data.id}`);
-    } catch (err) { alert(err.response?.data?.error || 'Failed'); }
+  const pollTimer    = useRef(null);
+  const fetchPending = useRef(false);
+
+  // ── Load live rooms ──────────────────────────────────────────
+  const loadRooms = useCallback(async (initial=false)=>{
+    if(fetchPending.current && !initial) return;
+    fetchPending.current = true;
+    if(initial) setRoomsStatus('loading');
+    try{
+      const { data } = await api.get('/rooms');
+      const list = Array.isArray(data) ? data : (data.rooms||[]);
+      setRooms(list);
+      setRoomsStatus(list.length ? 'ok' : 'empty');
+    }catch(e){
+      if(initial) setRoomsStatus('error');
+    }finally{ fetchPending.current = false; }
+  },[]);
+
+  // ── Load following ───────────────────────────────────────────
+  const loadFollowing = useCallback(async ()=>{
+    setFollowStatus('loading');
+    try{
+      // Falls back to all rooms until a /following endpoint is added
+      const { data } = await api.get('/rooms');
+      const list = Array.isArray(data) ? data : (data.rooms||[]);
+      setFollowing(list);
+      setFollowStatus(list.length ? 'ok' : 'empty');
+    }catch(e){ setFollowStatus('error'); }
+  },[]);
+
+  // ── Polling ──────────────────────────────────────────────────
+  useEffect(()=>{
+    loadRooms(true);
+    pollTimer.current = setInterval(()=>{
+      if(document.visibilityState==='visible') loadRooms(false);
+    }, 5000);
+    const onVis = ()=>{ if(document.visibilityState==='visible') loadRooms(false); };
+    document.addEventListener('visibilitychange', onVis);
+    return ()=>{ clearInterval(pollTimer.current); document.removeEventListener('visibilitychange', onVis); };
+  },[loadRooms]);
+
+  // ── Me tab effects ───────────────────────────────────────────
+  useEffect(()=>{
+    if(mainTab==='me'){
+      if(subTab==='following' && followStatus==='idle') loadFollowing();
+      if(subTab==='recent') setRecentRooms(getRecentRooms());
+    }
+  },[mainTab, subTab]);
+
+  const handleSubTab = (tab)=>{
+    setSubTab(tab);
+    if(tab==='following') loadFollowing();
+    if(tab==='recent') setRecentRooms(getRecentRooms());
+  };
+
+  const goToRoom = (room)=>{
+    saveRecentRoom({ id:room.id, name:room.name, emoji:room.emoji||room.name?.[0], owner:room.host_username||'?' });
+    navigate(`/room/${room.id}`);
+  };
+
+  const handleRoomCreated = (roomId)=>{
+    setShowCreate(false);
+    navigate(`/room/${roomId}`);
   };
 
   return (
-    <div className="home-page">
-      <div className="home-top">
-        <div className="home-avatar" onClick={logout}>
-          {user?.avatar_url ? <img src={user.avatar_url} alt="" /> : user?.username?.[0]?.toUpperCase()}
+    <div className="hp-root">
+
+      {/* ── TOP NAV ── */}
+      <div className="hp-top-nav">
+        <div className="hp-nav-tabs">
+          <div className={`hp-nav-tab${mainTab==='me'?' active':''}`}    onClick={()=>setMainTab('me')}>Me</div>
+          <div className={`hp-nav-tab${mainTab==='popular'?' active':''}`} onClick={()=>setMainTab('popular')}>Popular</div>
         </div>
-        <h1 className="home-title">Party</h1>
-        <div className="home-notif">📋</div>
+        <div className="hp-nav-right">
+          <div className="hp-icon-btn">🔍</div>
+          <div className="hp-create-btn" onClick={()=>setShowCreate(true)}>＋</div>
+        </div>
       </div>
 
-      <div className="home-tabs">
-        {['My','Hot','New'].map(t => (
-          <button key={t} className={`tab-btn ${tab===t?'active':''}`} onClick={() => setTab(t)}>{t}</button>
-        ))}
-        <div className="tab-search">🔍 Search</div>
-      </div>
+      {/* ══════════════ POPULAR ══════════════ */}
+      <div className={`hp-page${mainTab==='popular'?' active':''}`}>
 
-      <div className="room-list">
-        {rooms.length === 0 && <p className="no-rooms">No rooms yet. Create one!</p>}
-        {rooms.map(room => (
-          <div key={room.id} className="room-card" onClick={() => navigate(`/room/${room.id}`)}>
-            <div className="room-thumb">{room.name?.[0]?.toUpperCase() || '🎙'}</div>
-            <div className="room-info">
-              <div className="room-flag-name">
-                <span>🇵🇭</span>
-                <span className="room-name">{room.name}</span>
-              </div>
-              <span className="room-tag" style={{ background: TAGS[room.tag] || '#888' }}>
-                {room.tag}
-              </span>
-              <p className="room-desc">{room.description}</p>
+        <div className="hp-banner">
+          <span className="hp-banner-decor left">🎖️</span>
+          <span className="hp-banner-decor right">🎖️</span>
+          <div className="hp-banner-content">
+            <div className="hp-banner-title">Welcome to Heylla 🎙</div>
+            <div className="hp-banner-sub">Find a room and join the party</div>
+          </div>
+          <div className="hp-banner-dots">
+            <div className="hp-bdot on"></div><div className="hp-bdot"></div><div className="hp-bdot"></div>
+          </div>
+        </div>
+
+        <div className="hp-quick-tiles">
+          <div className="hp-tile hp-tile-ranking"><span className="hp-tile-label">Ranking</span><div className="hp-tile-icons">🥇🥈</div></div>
+          <div className="hp-tile hp-tile-family"><span className="hp-tile-label">Family</span><div className="hp-tile-icons">👑💎</div></div>
+          <div className="hp-tile hp-tile-cp"><span className="hp-tile-label">Events</span><div className="hp-tile-icons">💕✨</div></div>
+        </div>
+
+        <div className="hp-section-hdr">
+          <div className="hp-section-title">🔴 Live Now</div>
+          <div className="hp-see-all" onClick={()=>loadRooms(true)}>Refresh</div>
+        </div>
+
+        <div className="hp-rooms-grid">
+          {roomsStatus==='loading' && <div className="hp-rooms-ph">Loading rooms...</div>}
+          {roomsStatus==='empty'   && <div className="hp-rooms-ph">No live rooms right now.</div>}
+          {roomsStatus==='error'   && (
+            <div className="hp-rooms-ph">
+              Failed to load.&nbsp;
+              <span style={{color:'var(--lv-accent)',cursor:'pointer'}} onClick={()=>loadRooms(true)}>Retry</span>
             </div>
-            <div className="room-stat">📶 {room.listener_count || 0}</div>
+          )}
+          {roomsStatus==='ok' && rooms.map((room,i)=>(
+            <RoomCard key={room.id} room={room} index={i} onClick={()=>goToRoom(room)}/>
+          ))}
+        </div>
+      </div>
+
+      {/* ══════════════ ME ══════════════ */}
+      <div className={`hp-page${mainTab==='me'?' active':''}`}>
+
+        {/* User card */}
+        <div className="hp-user-card">
+          <div className="hp-user-avatar">
+            {user?.avatar_url
+              ? <img src={user.avatar_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'14px'}}/>
+              : (user?.username?.[0]?.toUpperCase()||'?')}
           </div>
-        ))}
-      </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div className="hp-user-name">{user?.username||'...'}</div>
+            <div className="hp-user-meta">
+              <div className="hp-user-level">Lv.{user?.level||1}</div>
+              <div className="hp-user-id">ID: {user?.id||'-'}</div>
+              <div className="hp-user-coins">🪙 {(user?.coins||0).toLocaleString()}</div>
+            </div>
+          </div>
+          <div className="hp-arrow-btn">›</div>
+        </div>
 
-      <div className="home-join">
-        <button className="join-btn" onClick={() => setShowCreate(true)}>🎉 Create Room</button>
-      </div>
-
-      <nav className="bottom-nav">
-        <span className="nav-active">🏠</span>
-        <span>▶️</span><span>💗</span><span>👤</span><span>💬</span>
-      </nav>
-
-      {showCreate && (
-        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>Create Room</h2>
-            <form onSubmit={createRoom}>
-              <input placeholder="Room name" value={newRoom.name}
-                onChange={e => setNewRoom({...newRoom, name: e.target.value})} required />
-              <select value={newRoom.tag} onChange={e => setNewRoom({...newRoom, tag: e.target.value})}>
-                {Object.keys(TAGS).map(t => <option key={t}>{t}</option>)}
-              </select>
-              <input placeholder="Description" value={newRoom.description}
-                onChange={e => setNewRoom({...newRoom, description: e.target.value})} />
-              <button type="submit">Create</button>
-            </form>
+        {/* My room */}
+        <div className="hp-my-room-section">
+          <div className="hp-my-room-label">My Room</div>
+          <div className="hp-my-room-empty" onClick={()=>setShowCreate(true)}>
+            <div className="hp-my-room-empty-icon">🎙️</div>
+            <div className="hp-my-room-empty-text">Create your room</div>
+            <div className="hp-my-room-empty-sub">Tap to get started</div>
           </div>
         </div>
-      )}
+
+        {/* Sub-tabs */}
+        <div className="hp-sub-tabs">
+          <div className={`hp-sub-tab${subTab==='following'?' active':''}`} onClick={()=>handleSubTab('following')}>Following</div>
+          <div className={`hp-sub-tab${subTab==='recent'?' active':''}`}    onClick={()=>handleSubTab('recent')}>Recent Rooms</div>
+        </div>
+
+        {/* Following */}
+        {subTab==='following' && (
+          <div>
+            {followStatus==='loading' && <div style={{textAlign:'center',padding:'32px',color:'var(--lv-muted)',fontSize:'13px'}}>Loading...</div>}
+            {followStatus==='empty' && (
+              <div className="hp-empty-state">
+                <div className="hp-empty-icon">👥</div>
+                <div className="hp-empty-text">No rooms followed yet</div>
+                <div className="hp-empty-sub">Follow a host inside their room to see them here</div>
+              </div>
+            )}
+            {followStatus==='error' && <div style={{textAlign:'center',padding:'32px',color:'var(--lv-muted)',fontSize:'13px'}}>Failed to load.</div>}
+            {followStatus==='ok' && following.map(room=>(
+              <div key={room.id} className="hp-following-card hp-flw-live" onClick={()=>goToRoom(room)}>
+                <div className="hp-flw-cover" style={{background:'linear-gradient(135deg,#a78bfa,#f472b6)'}}>
+                  {room.emoji||room.name?.[0]||'🎙'}
+                  <div className="hp-flw-live-badge"><div className="hp-live-dot"></div> LIVE</div>
+                </div>
+                <div className="hp-flw-info">
+                  <div className="hp-flw-room-name">{room.name}</div>
+                  <div className="hp-flw-meta">
+                    <span className="hp-flw-owner">{room.host_username||'?'}</span>
+                    <span className="hp-flw-viewers">👥 {room.listener_count||0}</span>
+                  </div>
+                </div>
+                <button className="hp-flw-enter-btn" onClick={e=>{ e.stopPropagation(); goToRoom(room); }}>Enter</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Recent Rooms */}
+        {subTab==='recent' && (
+          <div>
+            {recentRooms.length===0 ? (
+              <div className="hp-empty-state">
+                <div className="hp-empty-icon">🕐</div>
+                <div className="hp-empty-text">No recently visited rooms</div>
+              </div>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                {recentRooms.map(r=>(
+                  <div key={r.id} className="hp-my-room-card" onClick={()=>navigate(`/room/${r.id}`)}>
+                    <div className="hp-my-room-cover">{r.emoji||'🎙'}</div>
+                    <div className="hp-my-room-info">
+                      <div className="hp-my-room-name">{r.name}</div>
+                      <div className="hp-my-room-meta"><span style={{fontSize:'11px',color:'var(--lv-muted)'}}>by {r.owner}</span></div>
+                    </div>
+                    <button className="hp-my-room-enter" onClick={e=>{ e.stopPropagation(); navigate(`/room/${r.id}`); }}>Enter</button>
+                  </div>
+                ))}
+                <div className="hp-recent-clear" onClick={()=>{ localStorage.removeItem(RECENT_KEY); setRecentRooms([]); }}>Clear History</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── BOTTOM NAV ── */}
+      <div className="hp-bottom-nav">
+        <div className={`hp-nav-item${mainTab==='me'?' active':''}`} onClick={()=>setMainTab('me')}>
+          <span className="hp-nav-icon">🏠</span><span className="hp-nav-label">Home</span>
+        </div>
+        <div className={`hp-nav-item${mainTab==='popular'?' active':''}`} onClick={()=>setMainTab('popular')}>
+          <span className="hp-nav-icon">🔴</span><span className="hp-nav-label">Live</span>
+        </div>
+        <div className="hp-nav-item">
+          <span className="hp-nav-icon">✉️</span><span className="hp-nav-label">Messages</span>
+        </div>
+        <div className="hp-nav-item" onClick={logout}>
+          <span className="hp-nav-icon">
+            {user?.avatar_url
+              ? <img src={user.avatar_url} alt="" style={{width:24,height:24,borderRadius:'50%',objectFit:'cover'}}/>
+              : '👤'}
+          </span>
+          <span className="hp-nav-label">Me</span>
+        </div>
+      </div>
+
+      <CreateRoomModal open={showCreate} onClose={()=>setShowCreate(false)} onCreated={handleRoomCreated}/>
     </div>
   );
 }
