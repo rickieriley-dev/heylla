@@ -119,6 +119,7 @@ export default function RoomPage() {
   const giftErrorTmr = useRef(null);
   const bubbleRef    = useRef(null);
   const bubbleDrag   = useRef({ dragging:false, moved:false, startX:0, startY:0, startL:0, startT:0 });
+  const voiceStartPending = useRef(false);
 
   const isHost        = room?.host_id === user?.id;
   const isAdmin       = admins.includes(user?.id);
@@ -131,7 +132,17 @@ export default function RoomPage() {
     if (!socket || !roomId) return;
     socket.emit('room:join', { roomId });
 
-    socket.on('room:seats',   setSeats);
+    socket.on('room:seats', newSeats => {
+      setSeats(newSeats);
+      // If we just took a seat and are waiting for server confirmation, start voice now
+      if (voiceStartPending.current) {
+        const confirmed = newSeats.find(s => s.user_id === user?.id && s.is_occupied);
+        if (confirmed) {
+          voiceStartPending.current = false;
+          startVoice();
+        }
+      }
+    });
     socket.on('room:viewers', ({ count }) => setViewers(count));
     socket.on('room:info',    ({ room: r, admins: a }) => {
       setRoom(r);
@@ -203,16 +214,16 @@ export default function RoomPage() {
 
     socket.on('seat:approved', ({ userId: approvedId, seatNumber }) => {
       if (approvedId !== user?.id) return;
+      voiceStartPending.current = true;
       socket.emit('seat:take', { roomId, seatNumber });
-      startVoice();
       addSysMsg(`✅ Host approved! You joined Mic ${seatNumber}.`);
     });
 
     socket.on('seat:invite', ({ userId, seatNumber, fromName }) => {
       if (userId !== user?.id) return;
       if (window.confirm(`${fromName} invited you to Mic ${seatNumber}! Accept?`)) {
+        voiceStartPending.current = true;
         socket.emit('seat:take', { roomId, seatNumber });
-        startVoice();
       }
     });
 
@@ -320,9 +331,15 @@ export default function RoomPage() {
 
   const takeMic = () => {
     if (!activeSeat) return;
-    if (activeSeat.is_locked && !isHostOrAdmin) { addSysMsg('🔒 This mic is locked.'); closeSheet(); return; }
+    if (activeSeat.is_locked && !isHostOrAdmin) {
+      addSysMsg('🔒 This mic is locked.');
+      closeSheet();
+      return;
+    }
+    // Don't call startVoice here — wait for server's room:seats confirmation
+    // voiceStartPending ref will trigger startVoice once we see ourselves in a seat
+    voiceStartPending.current = true;
     socket.emit('seat:take', { roomId, seatNumber: activeSeat.seat_number });
-    startVoice();
     closeSheet();
   };
   const requestMic = () => {
@@ -345,9 +362,11 @@ export default function RoomPage() {
   const hostMuteSeat = (sn, m)  => { socket.emit('host:mute_seat',    { roomId, seatNumber: sn, muted: m });    closeSheet(); };
   const hostLockSeat = (sn, lk) => {
     socket.emit('host:lock_seat', { roomId, seatNumber: sn, locked: lk });
-    // Optimistically update activeSeat so the UI reflects the change immediately
+    // Update seats immediately so the mic slot shows 🔒 right away
+    setSeats(prev => prev.map(s => s.seat_number === sn ? { ...s, is_locked: lk } : s));
+    // Update activeSeat so the sheet button label flips (Lock ↔ Unlock)
     setActiveSeat(prev => prev ? { ...prev, is_locked: lk } : prev);
-    // Don't closeSheet so host can see it changed
+    // Don't close sheet — host can see the change happened
   };
   const hostKickSeat = sn       => { socket.emit('host:kick_seat',    { roomId, seatNumber: sn });               closeSheet(); };
   const hostSetAdmin = uid      => { socket.emit('host:set_admin',    { roomId, userId: uid });                  closeSheet(); };
@@ -435,7 +454,16 @@ export default function RoomPage() {
   };
 
   // ── Exit ──────────────────────────────────────────────────────────────────
-  const handleExit  = () => isHost ? setShowExitModal(true) : navigate('/');
+  const handleExit = () => {
+    if (isHost) {
+      setShowExitModal(true); // Host picks: End Room or Minimize
+    } else {
+      // Regular user / admin — just leave quietly
+      if (mySeat) socket.emit('seat:leave', { roomId });
+      stopVoice();
+      navigate('/');
+    }
+  };
   const doEndRoom   = () => { socket.emit('room:end', { roomId }); navigate('/'); };
   const doMinimize  = () => { setShowExitModal(false); setMinimized(true); };
 
@@ -655,7 +683,7 @@ export default function RoomPage() {
               {activeSeat.is_locked ? '🔓 Unlock Mic' : '🔒 Lock Mic'}
             </div>
           </>) : activeSeat.is_locked ? (
-            <div className="lv-mo" style={{opacity:0.5}}>🔒 Mic is locked</div>
+            <div className="lv-mo" style={{opacity:0.5,cursor:'not-allowed'}}>🔒 This mic is locked</div>
           ) : (<>
             <div className="lv-mo" onClick={takeMic}>🎤 Take Mic</div>
             <div className="lv-mo" onClick={requestMic}>✋ Request Mic</div>
@@ -778,10 +806,15 @@ export default function RoomPage() {
           </div>
           <div className="lv-g-footer">
             <div>
-              <div className="lv-c-show">🪙 {coins.toLocaleString()}</div>
+              <div className="lv-c-show" style={{color: coins < selGift.cost * giftQty * Math.max(1, giftRecips.length) ? '#f87171' : 'var(--lv-gold)'}}>
+                🪙 {coins.toLocaleString()}
+              </div>
               <div style={{fontSize:10,color:'var(--lv-muted)',marginTop:2}}>
                 Total: 🪙{(selGift.cost * giftQty * Math.max(1, giftRecips.length)).toLocaleString()}
               </div>
+              {giftError && (
+                <div style={{fontSize:11,color:'#f87171',marginTop:4,fontWeight:700}}>{giftError}</div>
+              )}
             </div>
             <div className="lv-g-send-row">
               <select className="lv-qty-s" value={giftQty} onChange={e => setGiftQty(+e.target.value)}>
