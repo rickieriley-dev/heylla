@@ -25,6 +25,14 @@ exports.createRoom = async (req, res, next) => {
     // Create the new room
     const room = await Room.create({ name, host_id: req.user.id, tag, description, is_locked });
     await Seat.initSeats(room.id, 8);
+
+    // Broadcast updated room list to all homepage users
+    const io = req.app.get('io');
+    if (io) {
+      const rooms = await Room.findAll();
+      io.emit('lobby:rooms_updated', rooms);
+    }
+
     res.status(201).json(room);
   } catch (err) { next(err); }
 };
