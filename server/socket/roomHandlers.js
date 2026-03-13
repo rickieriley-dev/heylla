@@ -211,11 +211,16 @@ module.exports = (io, socket) => {
     io.to(roomId).emit('room:settings_updated', room);
   });
 
-  // Fix #4: room:end handler was completely missing
+  // room:end — host ends the session but room stays active for next time
   socket.on('room:end', async ({ roomId }) => {
     if (!(await isHost(roomId, socket.user.id))) return;
-    await Room.deactivate(roomId);
-    io.to(roomId).emit('room:closed');
+    // Clear all seats but keep room active
+    await db.query(
+      `UPDATE seats SET user_id=NULL, is_occupied=false, joined_at=NULL WHERE room_id=$1`,
+      [roomId]
+    );
+    await redis.del(`seats:${roomId}`);
+    io.to(roomId).emit('room:closed'); // kicks everyone back to homepage
   });
 
   // ── CHAT ─────────────────────────────────────────────────────────────────────
